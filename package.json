@@ -1,0 +1,57 @@
+{
+  "name": "@kingironman2011/vite-pages",
+  "version": "1.0.0",
+  "description": "Vite plugin that auto-generates HTML files for every react-router-dom route so refreshing on a sub-page never 404s (great for GitHub Pages, Netlify, Vercel static, etc.)",
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "react-router",
+    "react-router-dom",
+    "spa",
+    "github-pages",
+    "static",
+    "404",
+    "html-generation"
+  ],
+  "homepage": "https://github.com/KingIronMan2011/vite-pages#readme",
+  "bugs": {
+    "url": "https://github.com/KingIronMan2011/vite-pages/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KingIronMan2011/vite-pages.git"
+  },
+  "license": "MIT",
+  "author": "KingIronMan2011",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "vite": ">=7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0-beta.0"
+  }
+}
