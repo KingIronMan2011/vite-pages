@@ -1,17 +1,17 @@
-name: Publish to npm
+name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      id-token: write
+      contents: write      # create GitHub releases & tags
+      id-token: write      # npm trusted publishing (OIDC provenance)
 
     steps:
       - uses: actions/checkout@v4
@@ -21,16 +21,58 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      # ── Read version from package.json ────────────────────────────────────
+      - name: Read package version
+        id: pkg
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
+      # ── Check if this version was already released on GitHub ──────────────
+      - name: Check if already released
+        id: check
+        run: |
+          if gh release view "${{ steps.pkg.outputs.tag }}" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Version ${{ steps.pkg.outputs.tag }} already released – skipping."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Version ${{ steps.pkg.outputs.tag }} is new – will release."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Build (only if new version) ───────────────────────────────────────
       - name: Install dependencies
+        if: steps.check.outputs.exists == 'false'
         run: npm ci
 
-      - name: Build
-        run: npm run build
-
       - name: Typecheck
+        if: steps.check.outputs.exists == 'false'
         run: npm run typecheck
 
-      - name: Publish
-        run: npm publish --access public
+      - name: Build
+        if: steps.check.outputs.exists == 'false'
+        run: npm run build
+
+      # ── Create GitHub release ─────────────────────────────────────────────
+      - name: Create GitHub release
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          gh release create "${{ steps.pkg.outputs.tag }}" \
+            --title "${{ steps.pkg.outputs.tag }}" \
+            --generate-notes \
+            --repo "$GITHUB_REPOSITORY"
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Publish to npm with OIDC provenance (trusted publishing) ─────────
+      # Trusted publishing lets npm verify identity via GitHub Actions OIDC
+      # so you never store a long-lived token in your secrets.
+      # Setup: npmjs.com → your package → Settings → Trusted Publishers →
+      # add this repo (KingIronMan2011/vite-pages) + workflow (publish.yml).
+      - name: Publish to npm (trusted publishing)
+        if: steps.check.outputs.exists == 'false'
+        run: npm publish --access public --provenance
