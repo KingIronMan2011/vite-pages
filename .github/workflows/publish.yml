@@ -1,4 +1,4 @@
-name: Release
+name: Publish to npm and GitHub
 
 on:
   push:
@@ -6,75 +6,106 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
 jobs:
-  release:
+  publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write      # create GitHub releases & tags
-      id-token: write      # npm trusted publishing (OIDC provenance)
-
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          fetch-depth: 0
 
-      # ── Read version from package.json ────────────────────────────────────
-      - name: Read package version
-        id: pkg
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
-          echo "Detected version: $VERSION"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          registry-url: "https://registry.npmjs.org"
 
-      # ── Check if this version was already released on GitHub ──────────────
-      - name: Check if already released
-        id: check
-        run: |
-          if gh release view "${{ steps.pkg.outputs.tag }}" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Version ${{ steps.pkg.outputs.tag }} already released – skipping."
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Version ${{ steps.pkg.outputs.tag }} is new – will release."
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # ── Build (only if new version) ───────────────────────────────────────
       - name: Install dependencies
-        if: steps.check.outputs.exists == 'false'
         run: npm ci
 
-      - name: Typecheck
-        if: steps.check.outputs.exists == 'false'
-        run: npm run typecheck
-
       - name: Build
-        if: steps.check.outputs.exists == 'false'
         run: npm run build
 
-      # ── Create GitHub release ─────────────────────────────────────────────
-      - name: Create GitHub release
-        if: steps.check.outputs.exists == 'false'
-        run: |
-          gh release create "${{ steps.pkg.outputs.tag }}" \
-            --title "${{ steps.pkg.outputs.tag }}" \
-            --generate-notes \
-            --repo "$GITHUB_REPOSITORY"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get package version
+        id: package_version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      # ── Publish to npm with OIDC provenance (trusted publishing) ─────────
-      # Trusted publishing lets npm verify identity via GitHub Actions OIDC
-      # so you never store a long-lived token in your secrets.
-      # Setup: npmjs.com → your package → Settings → Trusted Publishers →
-      # add this repo (KingIronMan2011/vite-pages) + workflow (publish.yml).
-      - name: Publish to npm (trusted publishing)
-        if: steps.check.outputs.exists == 'false'
+      - name: Check if version is already published to npm
+        id: check_npm
+        run: |
+          VERSION=${{ steps.package_version.outputs.version }}
+          if npm view @kingironman2011/vite-pages@$VERSION version 2>/dev/null; then
+            echo "published=true" >> $GITHUB_OUTPUT
+            echo "Version $VERSION already exists on npm"
+          else
+            echo "published=false" >> $GITHUB_OUTPUT
+            echo "Version $VERSION does not exist on npm"
+          fi
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          VERSION=${{ steps.package_version.outputs.version }}
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag v$VERSION already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Tag v$VERSION does not exist"
+          fi
+
+      - name: Publish to npm
+        if: steps.check_npm.outputs.published == 'false'
+        run: npm publish
+        env:
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Setup Node.js for GitHub Packages
+        if: steps.check_npm.outputs.published == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@kingironman2011"
+
+      - name: Publish to GitHub Packages
+        if: steps.check_npm.outputs.published == 'false'
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Git tag
+        if: steps.check_tag.outputs.exists == 'false' && steps.check_npm.outputs.published == 'false'
+        run: |
+          VERSION=${{ steps.package_version.outputs.version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false' && steps.check_npm.outputs.published == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.package_version.outputs.version }}
+          name: Release v${{ steps.package_version.outputs.version }}
+          body: |
+            Release version ${{ steps.package_version.outputs.version }}
+
+            See [CHANGELOG](https://github.com/KingIronMan2011/vite-pages/blob/main/CHANGELOG.md) for details.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip publishing (already published)
+        if: steps.check_npm.outputs.published == 'true'
+        run: |
+          echo "Version ${{ steps.package_version.outputs.version }} is already published. Skipping publish step."
