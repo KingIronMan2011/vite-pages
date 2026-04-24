@@ -75,4 +75,6 @@ jobs:
       # add this repo (KingIronMan2011/vite-pages) + workflow (publish.yml).
       - name: Publish to npm (trusted publishing)
         if: steps.check.outputs.exists == 'false'
-        run: npm publish --access public --provenance
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
