@@ -1,6 +1,6 @@
 {
   "name": "@kingironman2011/vite-pages",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Vite plugin that auto-generates HTML files for every react-router-dom route so refreshing on a sub-page never 404s (great for GitHub Pages, Netlify, Vercel static, etc.)",
   "keywords": [
     "vite",
@@ -29,14 +29,24 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      ".": ["./dist/index.d.ts"]
+    }
+  },
   "files": [
     "dist",
     "README.md",

@@ -180,4 +180,3 @@ export function vitePages(options: VitePagesOptions = {}): Plugin {
   }
 }
 
-export default vitePages
