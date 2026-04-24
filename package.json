@@ -21,6 +21,9 @@
     "type": "git",
     "url": "git+https://github.com/KingIronMan2011/vite-pages.git"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT",
   "author": "KingIronMan2011",
   "type": "module",
