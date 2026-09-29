@@ -3,68 +3,63 @@
   "version": "1.0.2",
   "description": "Vite plugin that auto-generates HTML files for every react-router-dom route so refreshing on a sub-page never 404s (great for GitHub Pages, Netlify, Vercel static, etc.)",
   "keywords": [
-    "vite",
-    "vite-plugin",
+    "404",
+    "github-pages",
+    "html-generation",
     "react-router",
     "react-router-dom",
     "spa",
-    "github-pages",
     "static",
-    "404",
-    "html-generation"
+    "vite",
+    "vite-plugin"
   ],
   "homepage": "https://github.com/KingIronMan2011/vite-pages#readme",
   "bugs": {
     "url": "https://github.com/KingIronMan2011/vite-pages/issues"
   },
+  "license": "MIT",
+  "author": "KingIronMan2011",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/KingIronMan2011/vite-pages.git"
   },
-  "publishConfig": {
-    "access": "public"
-  },
-  "license": "MIT",
-  "author": "KingIronMan2011",
-  "type": "module",
-  "exports": {
-    ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
-      }
-    }
-  },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "typesVersions": {
-    "*": {
-      ".": ["./dist/index.d.ts"]
-    }
-  },
   "files": [
-    "dist",
+    "dist/index.js",
+    "dist/index.js.map",
+    "dist/index.d.ts",
+    "dist/index.d.ts.map",
     "README.md",
     "LICENSE"
   ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "prepublishOnly": "npm run build",
-    "typecheck": "tsc --noEmit"
+    "build": "tsc",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "oxfmt": "^0.71.0",
+    "oxlint": "^1.86.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
   },
   "peerDependencies": {
     "vite": ">=7.0.0"
   },
-  "devDependencies": {
-    "@types/node": "^25.6.0",
-    "tsup": "^8.4.0",
-    "typescript": "^5.8.3",
-    "vite": "^7.0.0-beta.0"
-  }
+  "packageManager": "pnpm@11.25.0"
 }

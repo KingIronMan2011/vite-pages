@@ -35,16 +35,16 @@ yarn add -D @kingironman2011/vite-pages
 
 ```ts
 // vite.config.ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { vitePages } from '@kingironman2011/vite-pages'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { vitePages } from "@kingironman2011/vite-pages";
 
 export default defineConfig({
   plugins: [
     react(),
-    vitePages(),          // ← drop it in, zero config needed
+    vitePages(), // ← drop it in, zero config needed
   ],
-})
+});
 ```
 
 That's it. Run `vite build` and every detected route gets its own `index.html`.
@@ -59,19 +59,19 @@ vitePages({
    * Source directory to scan for route definitions.
    * @default 'src'
    */
-  srcDir: 'src',
+  srcDir: "src",
 
   /**
    * File extensions to include in the scan.
    * @default ['.tsx', '.ts', '.jsx', '.js']
    */
-  extensions: ['.tsx', '.ts', '.jsx', '.js'],
+  extensions: [".tsx", ".ts", ".jsx", ".js"],
 
   /**
    * Routes to always generate HTML for, regardless of auto-detection.
    * Useful for routes defined in config files outside the src folder.
    */
-  additionalRoutes: ['/404', '/maintenance'],
+  additionalRoutes: ["/404", "/maintenance"],
 
   /**
    * Turn off automatic scanning entirely.
@@ -85,7 +85,7 @@ vitePages({
    * @default false
    */
   verbose: true,
-})
+});
 ```
 
 ---
@@ -94,12 +94,13 @@ vitePages({
 
 The plugin scans every `.tsx/.ts/.jsx/.js` file in your `srcDir` and extracts paths from:
 
-| Pattern | Example |
-|---|---|
-| JSX attribute | `<Route path="/about" …/>` |
+| Pattern        | Example                              |
+| -------------- | ------------------------------------ |
+| JSX attribute  | `<Route path="/about" …/>`           |
 | Object literal | `{ path: '/dashboard', element: … }` |
 
 **What is intentionally skipped:**
+
 - Dynamic segments: `/user/:id`, `/post/:slug`
 - Wildcard routes: `*`, `/404/*`
 - Template literals (not statically knowable)
@@ -124,9 +125,9 @@ For routes with dynamic segments use `additionalRoutes` to manually list the sta
 ## Vite compatibility
 
 | Vite version | Supported |
-|---|---|
-| 7.x | ✅ |
-| 8.x | ✅ |
+| ------------ | --------- |
+| 7.x          | ✅        |
+| 8.x          | ✅        |
 
 ---
 
