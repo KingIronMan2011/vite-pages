@@ -46,8 +46,7 @@ function normalizeRoute(route: string): string {
   return route.length > 1 ? route.replace(/\/$/, "") : route;
 }
 
-function extractRoutesFromContent(content: string): string[] {
-  const found = new Set<string>();
+function extractRoutesFromContent(content: string, found: Set<string>): void {
   for (const re of [JSX_PATH_RE, OBJ_PATH_RE]) {
     re.lastIndex = 0;
     let m: RegExpExecArray | null;
@@ -58,7 +57,6 @@ function extractRoutesFromContent(content: string): string[] {
       found.add(normalizeRoute(raw.startsWith("/") ? raw : `/${raw}`));
     }
   }
-  return [...found];
 }
 
 const SKIP_DIRS = new Set([
@@ -69,31 +67,33 @@ const SKIP_DIRS = new Set([
   "coverage",
   ".vite",
 ]);
+const IO_CONCURRENCY = 64;
+const COPY_FILE_THRESHOLD = 8 * 1024;
 
 // Async parallel directory walk — never blocks the event loop
-async function walkDir(dir: string, exts: Set<string>): Promise<string[]> {
+async function walkDir(
+  dir: string,
+  exts: Set<string>,
+  files: string[],
+): Promise<void> {
   let entries: Dirent[];
   try {
     entries = await fs.promises.readdir(dir, { withFileTypes: true });
   } catch {
-    return [];
+    return;
   }
 
-  const batches = await Promise.all(
-    entries.map((entry) => {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        return SKIP_DIRS.has(entry.name)
-          ? Promise.resolve([])
-          : walkDir(full, exts);
-      }
-      return Promise.resolve(
-        entry.isFile() && exts.has(path.extname(entry.name)) ? [full] : [],
-      );
-    }),
-  );
+  const subdirs: string[] = [];
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!SKIP_DIRS.has(entry.name)) subdirs.push(full);
+    } else if (entry.isFile() && exts.has(path.extname(entry.name))) {
+      files.push(full);
+    }
+  }
 
-  return batches.flat();
+  await Promise.all(subdirs.map((subdir) => walkDir(subdir, exts, files)));
 }
 
 // ─── HTML Generation ─────────────────────────────────────────────────────────
@@ -101,7 +101,8 @@ async function walkDir(dir: string, exts: Set<string>): Promise<string[]> {
 async function writeRouteHtml(
   outDir: string,
   route: string,
-  indexHtml: string,
+  indexPath: string,
+  indexHtml: Buffer,
   verbose: boolean,
 ): Promise<void> {
   const segments = route.replace(/^\//, "").split("/");
@@ -109,7 +110,11 @@ async function writeRouteHtml(
 
   await fs.promises.mkdir(dir, { recursive: true });
   const dest = path.join(dir, "index.html");
-  await fs.promises.writeFile(dest, indexHtml, "utf-8");
+  if (indexHtml.length > COPY_FILE_THRESHOLD) {
+    await fs.promises.copyFile(indexPath, dest);
+  } else {
+    await fs.promises.writeFile(dest, indexHtml);
+  }
 
   if (verbose) {
     console.log(
@@ -150,18 +155,27 @@ export function vitePages(options: VitePagesOptions = {}): Plugin {
       const routeSet = new Set<string>();
 
       if (!disableAutoScan) {
-        const files = await walkDir(absSrc, extSet);
-        const routeLists = await Promise.all(
-          files.map((file) =>
-            fs.promises
-              .readFile(file, "utf-8")
-              .then(extractRoutesFromContent)
-              .catch(() => [] as string[]),
+        const files: string[] = [];
+        await walkDir(absSrc, extSet, files);
+        let nextFile = 0;
+        await Promise.all(
+          Array.from(
+            { length: Math.min(IO_CONCURRENCY, files.length) },
+            async () => {
+              while (nextFile < files.length) {
+                const file = files[nextFile++];
+                try {
+                  extractRoutesFromContent(
+                    await fs.promises.readFile(file, "utf-8"),
+                    routeSet,
+                  );
+                } catch {
+                  // Ignore unreadable files, as during development file changes.
+                }
+              }
+            },
           ),
         );
-        for (const routes of routeLists) {
-          for (const r of routes) routeSet.add(r);
-        }
       }
 
       for (const r of additionalRoutes) {
@@ -177,9 +191,9 @@ export function vitePages(options: VitePagesOptions = {}): Plugin {
 
       // ── 2. Read index.html ────────────────────────────────────────────────
       const indexPath = path.join(absOut, "index.html");
-      let indexHtml: string;
+      let indexHtml: Buffer;
       try {
-        indexHtml = await fs.promises.readFile(indexPath, "utf-8");
+        indexHtml = await fs.promises.readFile(indexPath);
       } catch {
         console.warn(
           "[vite-pages] ⚠  dist/index.html not found – skipping HTML generation.",
@@ -194,9 +208,22 @@ export function vitePages(options: VitePagesOptions = {}): Plugin {
         );
       }
 
+      const routes = [...routeSet];
+      let nextRoute = 0;
       await Promise.all(
-        [...routeSet].map((route) =>
-          writeRouteHtml(absOut, route, indexHtml, verbose),
+        Array.from(
+          { length: Math.min(IO_CONCURRENCY, routes.length) },
+          async () => {
+            while (nextRoute < routes.length) {
+              await writeRouteHtml(
+                absOut,
+                routes[nextRoute++],
+                indexPath,
+                indexHtml,
+                verbose,
+              );
+            }
+          },
         ),
       );
 
